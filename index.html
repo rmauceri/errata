@@ -262,7 +262,7 @@ function initAudio() {
   // Creates 0.5–1 Hz beating, like fluorescent lights in a conference room
   const masterGain = audioCtx.createGain();
   masterGain.gain.value = 0.0;
-  masterGain.gain.linearRampToValueAtTime(0.018, audioCtx.currentTime + 3.0); // fade in slowly
+  masterGain.gain.linearRampToValueAtTime(0.055, audioCtx.currentTime + 3.0); // fade in slowly
 
   const droneFreqs = [55, 55.6, 82.5, 83.3]; // two pairs, each pair beats ~0.6 Hz
   droneFreqs.forEach(freq => {
@@ -398,24 +398,26 @@ function playYodaEnter() {
 function playYodaExit() {
   if (!audioCtx) return;
   const now = audioCtx.currentTime;
-  // Quick descending sweep — a soft whoosh scatter
-  const o = audioCtx.createOscillator(); o.type = 'sine';
-  o.frequency.setValueAtTime(480, now);
-  o.frequency.exponentialRampToValueAtTime(60, now + 0.5);
-  const g = audioCtx.createGain();
-  g.gain.setValueAtTime(0.10, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-  o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.5);
-  // Rustling noise burst
-  const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.3), audioCtx.sampleRate);
+  // Mirror of enter: same minor chord, already at peak, dissolving gently
+  const freqs = [110, 130.8, 164.8];
+  freqs.forEach((freq, i) => {
+    const o = audioCtx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(i === 0 ? 0.08 : 0.045, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(now); o.stop(now + 1.4);
+  });
+  // Soft breathe-out — high noise fading away (complement to the breathe-in on enter)
+  const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.9), audioCtx.sampleRate);
   const bd = buf.getChannelData(0);
   for (let i = 0; i < bd.length; i++) bd[i] = Math.random() * 2 - 1;
   const src = audioCtx.createBufferSource(); src.buffer = buf;
-  const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 0.5;
+  const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3200;
   const ng = audioCtx.createGain();
-  ng.gain.setValueAtTime(0.14, now);
-  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-  src.connect(bp); bp.connect(ng); ng.connect(audioCtx.destination); src.start(now);
+  ng.gain.setValueAtTime(0.04, now);
+  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+  src.connect(hp); hp.connect(ng); ng.connect(audioCtx.destination); src.start(now);
 }
 
 
