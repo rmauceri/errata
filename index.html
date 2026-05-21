@@ -773,6 +773,7 @@ let resetTimer = 0;
 let flashAlpha = 0;
 let yodaMode   = false;
 let koansLayout = null;
+let koanQueue  = []; // shuffle queue — cycles all 20 Dean templates before repeating
 
 function wordTarget() {
   const cap = W < 480 ? 5 : W < 768 ? 6 : 8;
@@ -1089,12 +1090,42 @@ function reflowLines(semanticLines, maxW) {
 }
 
 function buildKoanLayout(words) {
-  const n = Math.max(2, Math.min(words.length, 8));
-  const candidates = YODA_TEMPLATES.filter(t => t.slots === n);
-  if (candidates.length === 0) return null;
-  const tmpl = candidates[Math.floor(Math.random() * candidates.length)];
+  let tmpl;
 
-  const buckets = buildTypeBuckets(words.slice(0, n));
+  if (words.length >= 5) {
+    // Cycle through all 20 Dean templates (slots 5-8) via shuffle queue
+    const richIdxs = YODA_TEMPLATES.reduce((acc, t, i) => {
+      if (t.slots >= 5) acc.push(i); return acc;
+    }, []);
+    if (koanQueue.length === 0) {
+      koanQueue = [...richIdxs];
+      for (let i = koanQueue.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [koanQueue[i], koanQueue[j]] = [koanQueue[j], koanQueue[i]];
+      }
+    }
+    tmpl = YODA_TEMPLATES[koanQueue.pop()];
+  } else {
+    // Fallback: exact slot match for small word counts (2-4)
+    const n = Math.max(2, words.length);
+    const candidates = YODA_TEMPLATES.filter(t => t.slots === n);
+    if (candidates.length === 0) return null;
+    tmpl = candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  // Cycle words to fill any extra slots the template needs
+  let wordPool = [...words];
+  while (wordPool.length < tmpl.slots) {
+    const extra = [...words];
+    for (let i = extra.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [extra[i], extra[j]] = [extra[j], extra[i]];
+    }
+    wordPool = [...wordPool, ...extra];
+  }
+  wordPool = wordPool.slice(0, tmpl.slots);
+
+  const buckets = buildTypeBuckets(wordPool);
   const filledLines = tmpl.lines.map(line =>
     line.map(tok => {
       if (tok === 'n' || tok === 'v' || tok === 'a' || tok === 'p' || tok === '*')
