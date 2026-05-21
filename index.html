@@ -405,7 +405,7 @@ class Word {
     ctx.save();
     ctx.globalAlpha = this.transAlpha;
     const defSize  = 12;
-    const maxWidth = Math.min(230, W - 40);
+    const maxWidth = Math.min(260, W - 40);
     ctx.font = `italic ${defSize}px Georgia, "Times New Roman", serif`;
     // Word-wrap
     const words = this.definition.split(' ');
@@ -418,14 +418,24 @@ class Word {
     }
     if (line) lines.push(line);
     const lineH = defSize + 4;
-    const boxH  = lines.length * lineH + 12;
     const boxW  = maxWidth + 18;
+
+    // Determine position first with all lines, then cap lines to what fits
     let bx = this.x - 4;
     let by = this.y + 14;
     if (bx + boxW > W - 8) bx = W - 8 - boxW;
     if (bx < 8)            bx = 8;
-    if (by + boxH > H - 8) by = this.top - boxH - 8;
+    if (by + lines.length * lineH + 12 > H - 8) by = this.top - lines.length * lineH - 12 - 8;
     if (by < 8)            by = 8;
+
+    // Cap lines to what actually fits in the canvas
+    const maxLines = Math.floor((H - 8 - by - 12) / lineH);
+    if (lines.length > maxLines && maxLines > 0) {
+      lines.splice(maxLines - 1);
+      lines[maxLines - 1] = lines[maxLines - 1].replace(/\s+\S*$/, '') + '…';
+    }
+
+    const boxH  = lines.length * lineH + 12;
     ctx.fillStyle   = 'rgba(251,247,235,0.97)';
     ctx.strokeStyle = 'rgba(200,0,30,0.25)';
     ctx.lineWidth   = 1;
