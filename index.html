@@ -258,35 +258,35 @@ function initAudio() {
   if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  // Slow-beating office drone — 4 oscillators slightly detuned
-  // Creates 0.5–1 Hz beating, like fluorescent lights in a conference room
+  // Warm ambient pad — A-based open fifths with gentle shimmer
+  // A2/E3/A3 pairs, slightly detuned to create soft 0.4 Hz beating
   const masterGain = audioCtx.createGain();
   masterGain.gain.value = 0.0;
-  masterGain.gain.linearRampToValueAtTime(0.055, audioCtx.currentTime + 3.0); // fade in slowly
+  masterGain.gain.linearRampToValueAtTime(0.055, audioCtx.currentTime + 4.0);
 
-  const droneFreqs = [55, 55.6, 82.5, 83.3]; // two pairs, each pair beats ~0.6 Hz
-  droneFreqs.forEach(freq => {
+  const droneFreqs = [110, 110.4, 164.8, 165.2, 220, 220.5];
+  droneFreqs.forEach((freq, i) => {
     const o  = audioCtx.createOscillator();
     o.type   = 'sine';
     o.frequency.value = freq;
     const g  = audioCtx.createGain();
-    g.gain.value = 0.25;
+    g.gain.value = i < 4 ? 0.20 : 0.12; // top pair slightly softer
     const lp = audioCtx.createBiquadFilter();
-    lp.type  = 'lowpass'; lp.frequency.value = 280;
+    lp.type  = 'lowpass'; lp.frequency.value = 700; // warm, no harshness
     o.connect(lp); lp.connect(g); g.connect(masterGain); o.start();
   });
 
-  // Faint high-frequency noise — fluorescent ceiling texture
+  // Very soft presence noise — like paper or distant air, not fluorescent buzz
   const noiseSize = audioCtx.sampleRate * 2;
   const noiseBuf  = audioCtx.createBuffer(1, noiseSize, audioCtx.sampleRate);
   const nd = noiseBuf.getChannelData(0);
   for (let i = 0; i < noiseSize; i++) nd[i] = Math.random() * 2 - 1;
   const noiseSrc = audioCtx.createBufferSource();
   noiseSrc.buffer = noiseBuf; noiseSrc.loop = true;
-  const noiseBp = audioCtx.createBiquadFilter();
-  noiseBp.type = 'bandpass'; noiseBp.frequency.value = 6800; noiseBp.Q.value = 0.4;
-  const noiseGain = audioCtx.createGain(); noiseGain.gain.value = 0.04;
-  noiseSrc.connect(noiseBp); noiseBp.connect(noiseGain); noiseGain.connect(masterGain);
+  const noiseLp = audioCtx.createBiquadFilter();
+  noiseLp.type = 'lowpass'; noiseLp.frequency.value = 2400;
+  const noiseGain = audioCtx.createGain(); noiseGain.gain.value = 0.012;
+  noiseSrc.connect(noiseLp); noiseLp.connect(noiseGain); noiseGain.connect(masterGain);
   noiseSrc.start();
 
   masterGain.connect(audioCtx.destination);
@@ -1103,7 +1103,7 @@ function buildKoanLayout(words) {
     }).filter(tok => tok !== null)
   );
 
-  const maxLineW    = W - 56;
+  const maxLineW    = W - 80;  // 40px margin each side — generous for phone
   const visualLines = reflowLines(filledLines, maxLineW);
   const lineHeight  = 58;
   const startY      = H / 2 - ((visualLines.length - 1) / 2) * lineHeight;
@@ -1118,7 +1118,7 @@ function buildKoanLayout(words) {
     for (const tok of line) totalW += measureKoanTok(tok);
 
     const tokens = [];
-    let x = Math.max(28, W / 2 - totalW / 2);
+    let x = Math.max(40, W / 2 - totalW / 2);
 
     for (const tok of line) {
       const w = measureKoanTok(tok);
