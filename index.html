@@ -28,14 +28,13 @@
 // ================================================================
 
 const CONFESSIONS = [
+  // corporate deflections
   "ask the PM",
   "this meeting could have been an email",
   "we were both on the roadmap",
   "let's take this offline",
   "circle back on this",
   "please align with stakeholders",
-  "in our context window",
-  "technically we're both nouns",
   "see appendix C",
   "slide just said TBD",
   "outside our core competency",
@@ -44,9 +43,51 @@ const CONFESSIONS = [
   "not in scope for Q3",
   "we'll revisit next sprint",
   "blocked on dependencies",
+  "not a hill to die on",
+  "let's get aligned on this",
+  "pending legal review",
+  "we need to socialize this",
+  "that's a good problem to have",
+  "let's put a pin in it",
+  "we'll cross that bridge",
+  "lots of moving parts",
+  // tech absurdity
+  "in our context window",
+  "technically we're both nouns",
+  "undefined behavior",
+  "works on my machine",
+  "ship it and see",
+  "we'll fix it in post",
+  "legacy reasons",
+  "technical debt acknowledged",
+  "the spec was ambiguous",
+  "git blame has the answer",
+  // AI-era
+  "hallucinated but confident",
+  "prompt engineering required",
+  "the model disagrees",
+  "try token maxing",
+  "they are AGI-pilled",
+  // sincere
   "I trust you",
   "writing is thinking",
+  "don't bury the lede",
+  "counting is hard",
+  "nobody knows",
 ];
+
+// Shuffle queue — cycle through all confessions before repeating any
+let confessionQueue = [];
+function nextConfession() {
+  if (confessionQueue.length === 0) {
+    confessionQueue = [...CONFESSIONS];
+    for (let i = confessionQueue.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [confessionQueue[i], confessionQueue[j]] = [confessionQueue[j], confessionQueue[i]];
+    }
+  }
+  return confessionQueue.pop();
+}
 
 // ================================================================
 // === CANVAS SETUP ===
@@ -629,7 +670,7 @@ function handleCollision(a, b) {
   const perpY =  dx / len;
   const speed = 1.8 + Math.random() * 1.4;
   const dir   = Math.random() < 0.5 ? 1 : -1;
-  const conf  = CONFESSIONS[Math.floor(Math.random() * CONFESSIONS.length)];
+  const conf  = nextConfession();
   ejections.push(new Ejection(cx, cy, conf, perpX * speed * dir, perpY * speed * dir - 1.0));
 
   // Fade both originals
