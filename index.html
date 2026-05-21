@@ -1090,42 +1090,34 @@ function reflowLines(semanticLines, maxW) {
 }
 
 function buildKoanLayout(words) {
-  let tmpl;
+  const maxSlots = words.length;
 
-  if (words.length >= 5) {
-    // Cycle through all 20 Dean templates (slots 5-8) via shuffle queue
-    const richIdxs = YODA_TEMPLATES.reduce((acc, t, i) => {
-      if (t.slots >= 5) acc.push(i); return acc;
-    }, []);
-    if (koanQueue.length === 0) {
-      koanQueue = [...richIdxs];
+  // Pop next eligible template from shuffle queue.
+  // Rebuild the queue (for current word count) whenever it empties OR all
+  // remaining entries need more slots than we have.
+  let tmpl;
+  for (let pass = 0; pass < 2 && !tmpl; pass++) {
+    while (koanQueue.length > 0) {
+      const idx = koanQueue.pop();
+      if (YODA_TEMPLATES[idx].slots <= maxSlots) { tmpl = YODA_TEMPLATES[idx]; break; }
+    }
+    if (!tmpl) {
+      // Rebuild for current word count and try once more
+      const eligible = YODA_TEMPLATES
+        .map((_, i) => i)
+        .filter(i => YODA_TEMPLATES[i].slots <= maxSlots);
+      if (eligible.length === 0) return null;
+      koanQueue = [...eligible];
       for (let i = koanQueue.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [koanQueue[i], koanQueue[j]] = [koanQueue[j], koanQueue[i]];
       }
     }
-    tmpl = YODA_TEMPLATES[koanQueue.pop()];
-  } else {
-    // Fallback: exact slot match for small word counts (2-4)
-    const n = Math.max(2, words.length);
-    const candidates = YODA_TEMPLATES.filter(t => t.slots === n);
-    if (candidates.length === 0) return null;
-    tmpl = candidates[Math.floor(Math.random() * candidates.length)];
   }
+  if (!tmpl) return null;
 
-  // Cycle words to fill any extra slots the template needs
-  let wordPool = [...words];
-  while (wordPool.length < tmpl.slots) {
-    const extra = [...words];
-    for (let i = extra.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [extra[i], extra[j]] = [extra[j], extra[i]];
-    }
-    wordPool = [...wordPool, ...extra];
-  }
-  wordPool = wordPool.slice(0, tmpl.slots);
-
-  const buckets = buildTypeBuckets(wordPool);
+  // Only use as many words as the template has slots
+  const buckets = buildTypeBuckets(words.slice(0, tmpl.slots));
   const filledLines = tmpl.lines.map(line =>
     line.map(tok => {
       if (tok === 'n' || tok === 'v' || tok === 'a' || tok === 'p' || tok === '*')
@@ -1200,6 +1192,12 @@ function enterYodaMode() {
 
   yodaMode    = true;
   koansLayout = buildKoanLayout(words);
+
+  // Fade any words the template didn't assign a position to
+  // (happens when tmpl.slots < words.length)
+  for (const w of words) {
+    if (w.targetX === undefined) w.startFading();
+  }
 
   const btn = document.getElementById('yodaBtn');
   btn.classList.add('active');
