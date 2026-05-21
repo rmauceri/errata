@@ -602,7 +602,6 @@ class Word {
     ctx.fillText(this.word, this.x, this.y);
     this.drawSquiggle();
     ctx.restore();
-    if (this.transAlpha > 0.02) this.drawTranslation();
   }
 
   drawSquiggle() {
@@ -770,7 +769,6 @@ let usedCorpusIdxs    = new Set(); // indices used this cycle
 let sceneState = 'loading';  // 'loading' | 'playing' | 'resetting'
 let resetTimer = 0;
 let flashAlpha = 0;
-let promptAlpha = 1;
 let yodaMode   = false;
 let koansLayout = null;
 
@@ -991,17 +989,6 @@ function draw() {
     flashAlpha = Math.max(0, flashAlpha - 0.018);
   }
 
-  if (sceneState === 'loading' && promptAlpha > 0) {
-    ctx.save();
-    ctx.globalAlpha = promptAlpha;
-    ctx.font      = 'italic 15px Georgia, "Times New Roman", serif';
-    ctx.fillStyle = '#c8001e';
-    ctx.textAlign = 'center';
-    ctx.fillText('tap a word', W/2, H - 36);
-    ctx.textAlign = 'left';
-    ctx.restore();
-  }
-
   if (sceneState === 'resetting') {
     const fade = Math.min(1, (3000 - resetTimer) / 500) * Math.min(1, resetTimer / 400);
     if (fade > 0.02) {
@@ -1019,6 +1006,8 @@ function draw() {
   drawKoan();
   for (const w of activeWords) w.draw();
   for (const e of ejections)   e.draw();
+  // Definition tips always on top — drawn after all words and koan text
+  for (const w of activeWords) { if (w.transAlpha > 0.02) w.drawTranslation(); }
 }
 
 // ================================================================
@@ -1229,7 +1218,6 @@ canvas.addEventListener('pointerdown', e => {
   initAudio(); resumeAudio();
   if (sceneState === 'loading') {
     sceneState = 'playing';
-    promptAlpha = 0;
   }
   const { x, y } = canvasPoint(e);
   for (let i = activeWords.length - 1; i >= 0; i--) {
@@ -1263,8 +1251,9 @@ canvas.addEventListener('pointerup', e => {
   if (!draggedWord) return;
   e.preventDefault();
   if (!draggedWord.didMove) {
+    const wasVisible = draggedWord.transTimer > 0;
     for (const w of activeWords) w.transTimer = 0;  // dismiss any open definition
-    draggedWord.tap();
+    if (!wasVisible) draggedWord.tap();
     draggedWord.state = 'floating';
   } else {
     if (yodaMode) {
@@ -1360,7 +1349,7 @@ async function init() {
   requestAnimationFrame(loop);
 
   document.getElementById('yodaBtn').addEventListener('click', () => {
-    if (sceneState === 'loading') { sceneState = 'playing'; promptAlpha = 0; }
+    if (sceneState === 'loading') sceneState = 'playing';
     initAudio(); resumeAudio();
     if (yodaMode) exitYodaMode();
     else enterYodaMode();
