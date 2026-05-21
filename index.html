@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Errata</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #fdf6c3;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+    canvas { display: block; touch-action: none; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="assets/corpus.js"></script>
+<script>
+'use strict';
+
+// ================================================================
+// === CONFESSIONS(ejected on collision like free electrons)
+// ================================================================
+
+const CONFESSIONS = [
+  "ask the PM",
+  "this meeting could have been an email",
+  "we were both on the roadmap",
+  "let's take this offline",
+  "circle back on this",
+  "please align with stakeholders",
+  "in our context window",
+  "technically we're both nouns",
+  "see appendix C",
+  "slide just said TBD",
+  "outside our core competency",
+  "per my last email",
+  "as per the whitepaper",
+  "not in scope for Q3",
+  "we'll revisit next sprint",
+  "blocked on dependencies",
+  "I trust you",
+  "writing is thinking",
+];
+
+// ================================================================
+// === CANVAS SETUP ===
+// ================================================================
+
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W = 0, H = 0, dpr = 1;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W   = window.innerWidth;
+  H   = window.innerHeight;
+  canvas.width        = Math.round(W * dpr);
+  canvas.height       = Math.round(H * dpr);
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (paperPattern) buildPaperTexture();
+}
+window.addEventListener('resize', resize);
+
+// ================================================================
+// === AUDIO ===
+// ================================================================
+
+let audioCtx = null, ambientNode = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Slow-beating office drone — 4 oscillators slightly detuned
+  // Creates 0.5–1 Hz beating, like fluorescent lights in a conference room
+  const masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.0;
+  masterGain.gain.linearRampToValueAtTime(0.018, audioCtx.currentTime + 3.0); // fade in slowly
+
+  const droneFreqs = [55, 55.6, 82.5, 83.3]; // two pairs, each pair beats ~0.6 Hz
+  droneFreqs.forEach(freq => {
+    const o  = audioCtx.createOscillator();
+    o.type   = 'sine';
+    o.frequency.value = freq;
+    const g  = audioCtx.createGain();
+    g.gain.value = 0.25;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type  = 'lowpass'; lp.frequency.value = 280;
+    o.connect(lp); lp.connect(g); g.connect(masterGain); o.start();
+  });
+
+  // Faint high-frequency noise — fluorescent ceiling texture
+  const noiseSize = audioCtx.sampleRate * 2;
+  const noiseBuf  = audioCtx.createBuffer(1, noiseSize, audioCtx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < noiseSize; i++) nd[i] = Math.random() * 2 - 1;
+  const noiseSrc = audioCtx.createBufferSource();
+  noiseSrc.buffer = noiseBuf; noiseSrc.loop = true;
+  const noiseBp = audioCtx.createBiquadFilter();
+  noiseBp.type = 'bandpass'; noiseBp.frequency.value = 6800; noiseBp.Q.value = 0.4;
+  const noiseGain = audioCtx.createGain(); noiseGain.gain.value = 0.04;
+  noiseSrc.connect(noiseBp); noiseBp.connect(noiseGain); noiseGain.connect(masterGain);
+  noiseSrc.start();
+
+  masterGain.connect(audioCtx.destination);
+  ambientNode = masterGain;
+}
+
+function resumeAudio() {
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playAhem() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const sz  = Math.floor(audioCtx.sampleRate * 0.2);
+  const buf = audioCtx.createBuffer(1, sz, audioCtx.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < sz; i++)
+    d[i] = (Math.random()*2-1) * Math.sin((i/sz)*Math.PI) * Math.exp(-i/(sz*0.45));
+  const src = audioCtx.createBufferSource(); src.buffer = buf;
+  const bp  = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1100; bp.Q.value = 4;
+  const g   = audioCtx.createGain(); g.gain.value = 0.22;
+  src.connect(bp); bp.connect(g); g.connect(audioCtx.destination); src.start(now);
+}
+
+function playCollision() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Soft tritone chime — bell envelope, slightly unresolved but pleasant
+  const baseFreq = 440 * Math.pow(2, (Math.random() * 4 - 2) / 12); // slight random pitch variation
+  const tritone  = baseFreq * Math.pow(2, 6/12); // augmented fourth — the "devil's interval", softly
+  [baseFreq, tritone, baseFreq * 2].forEach((freq, i) => {
+    const o  = audioCtx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+    const g  = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now + i * 0.035);
+    g.gain.linearRampToValueAtTime(i === 2 ? 0.04 : 0.09, now + i * 0.035 + 0.012); // instant bell attack
+    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.035 + 1.8);              // long bell decay
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(now + i * 0.035); o.stop(now + i * 0.035 + 1.8);
+  });
+}
+
+function playFling() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const sz  = Math.floor(audioCtx.sampleRate * 0.12);
+  const buf = audioCtx.createBuffer(1, sz, audioCtx.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < sz; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/sz, 2.5);
+  const src = audioCtx.createBufferSource(); src.buffer = buf;
+  const bp  = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 0.8;
+  const g   = audioCtx.createGain(); g.gain.value = 0.1;
+  src.connect(bp); bp.connect(g); g.connect(audioCtx.destination); src.start(now);
+}
+
+function playWordFade() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const o   = audioCtx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(260, now);
+  o.frequency.exponentialRampToValueAtTime(55, now + 0.75);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.06, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+  o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.75);
+}
+
+function playReset() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const o   = audioCtx.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(140, now);
+  o.frequency.exponentialRampToValueAtTime(25, now + 1.0);
+  const lp  = audioCtx.createBiquadFilter(); lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(1000, now);
+  lp.frequency.exponentialRampToValueAtTime(60, now + 1.0);
+  const g   = audioCtx.createGain();
+  g.gain.setValueAtTime(0.3, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+  o.connect(lp); lp.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 1.0);
+}
+
+// ================================================================
+// === WORD CLASS ===
+// ================================================================
+
+const PADDING = 24;
+let wordIdCounter = 0;
+
+function wordFont(size, italic) {
+  const style = italic ? 'italic ' : '';
+  return `${style}${size}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
+}
+
+class Word {
+  constructor(entry, isCompound) {
+    this.id         = wordIdCounter++;
+    this.word       = entry.word;
+    this.type       = entry.type;
+    this.definition = entry.definition;
+    this.isCompound = !!isCompound;
+    this.corpusIdx  = entry._idx !== undefined ? entry._idx : -1;
+
+    this.fontSize  = this.computeFontSize();
+    this.textWidth = 0;
+
+    this.x = W / 2; this.y = H / 2;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.18 + Math.random() * 0.26;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+
+    this.state   = 'entering';
+    this.opacity = 0;
+
+    // Squiggle — character varies by word type
+    this.sqPhase = Math.random() * Math.PI * 2;
+    const sqProfile  = Word.squiggleProfile(entry.type, isCompound);
+    this.sqAmp       = sqProfile.amp;
+    this.sqFreq      = sqProfile.freq;
+    this.sqSpeed     = sqProfile.speed;
+    this.sqLineWidth = sqProfile.lineWidth;
+    this.sqNoise     = Array.from({ length: 60 }, () => (Math.random()-0.5) * sqProfile.noiseScale);
+
+    this.agitation  = isCompound ? 1.5 : 0;
+    this.transAlpha = 0;
+    this.transTimer = 0;
+    this.ageFactor  = 0;
+
+    // Compounds auto-expire
+    this.lifeTimer   = isCompound ? 9000 : Infinity;
+
+    // Collision tracking (plain words only)
+    this.lastCollisions = {};
+  }
+
+  static squiggleProfile(type, isCompound) {
+    // Each word type gets a distinct squiggle personality — no double squiggles
+    if (isCompound) return { amp: 4.5, freq: 0.30, speed: 0.06, lineWidth: 2.4, noiseScale: 1.2 };
+    switch (type) {
+      case 'noun':      return { amp: 3.8, freq: 0.20, speed: 0.020, lineWidth: 2.2, noiseScale: 0.6 }; // slow, deliberate, certain of itself
+      case 'verb':      return { amp: 2.8, freq: 0.34, speed: 0.058, lineWidth: 2.2, noiseScale: 1.5 }; // fast, jagged, agitated
+      case 'adjective': return { amp: 2.2, freq: 0.17, speed: 0.016, lineWidth: 1.8, noiseScale: 0.4 }; // smooth, slow, insidious
+      case 'phrase':    return { amp: 4.0, freq: 0.13, speed: 0.028, lineWidth: 2.5, noiseScale: 0.9 }; // wide, lazy, sprawling
+      default:          return { amp: 2.8, freq: 0.22, speed: 0.028, lineWidth: 2.0, noiseScale: 0.8 };
+    }
+  }
+
+  computeFontSize() {
+    const len = this.word.length;
+    if (len <= 4)  return 30;
+    if (len <= 7)  return 25;
+    if (len <= 11) return 21;
+    if (len <= 16) return 17;
+    if (len <= 22) return 15;
+    return 13;
+  }
+
+  ensureWidth() {
+    if (this.textWidth > 0) return;
+    ctx.font = wordFont(this.fontSize, this.isCompound);
+    this.textWidth = ctx.measureText(this.word).width;
+  }
+
+  get left()   { return this.x; }
+  get right()  { return this.x + this.textWidth; }
+  get top()    { return this.y - this.fontSize; }
+  get bottom() { return this.y + 10; }
+
+  hitTest(px, py) {
+    if (!this.textWidth) return false;
+    const pad = 10;
+    return px >= this.left-pad && px <= this.right+pad &&
+           py >= this.top-pad  && py <= this.bottom+pad;
+  }
+
+  overlaps(other) {
+    if (!this.textWidth || !other.textWidth) return false;
+    const pad = 6;
+    return this.left-pad   < other.right+pad  &&
+           this.right+pad  > other.left-pad   &&
+           this.top-pad    < other.bottom+pad &&
+           this.bottom+pad > other.top-pad;
+  }
+
+  update(dt) {
+    const t16 = dt / 16;
+
+    if (this.state === 'entering') {
+      this.opacity = Math.min(1, this.opacity + dt * 0.0022);
+      if (this.opacity >= 1) { this.opacity = 1; this.state = 'floating'; }
+    }
+
+    if (this.state === 'fading') {
+      this.opacity = Math.max(0, this.opacity - dt * 0.0020);
+      if (this.opacity <= 0) this.state = 'dead';
+    }
+
+    if (this.state === 'floating' || this.state === 'entering' || this.state === 'flying') {
+      this.x += this.vx * t16;
+      this.y += this.vy * t16;
+      this.clampToScreen();
+
+      if (this.state === 'flying') {
+        const sp = Math.hypot(this.vx, this.vy);
+        if (sp < 0.5) {
+          this.state = 'floating';
+          const a = Math.random() * Math.PI * 2;
+          this.vx = Math.cos(a) * 0.22; this.vy = Math.sin(a) * 0.22;
+        } else { this.vx *= 0.96; this.vy *= 0.96; }
+      }
+    }
+
+    const phaseRate = this.state === 'flying' ? this.sqSpeed * 3 : this.sqSpeed;
+    this.sqPhase += phaseRate * t16 * (1 + this.agitation * 2);
+    this.agitation = Math.max(0, this.agitation - dt * 0.0020);
+
+    if (this.transTimer > 0) this.transTimer -= dt;
+    const wantTrans = this.transTimer > 0 ? 0.9 : 0;
+    this.transAlpha += (wantTrans - this.transAlpha) * Math.min(1, dt * 0.009);
+
+    this.ageFactor = Math.min(1, this.ageFactor + dt * 0.000025);
+
+    // Compound auto-fade
+    if (this.isCompound && this.state !== 'fading' && this.state !== 'dead') {
+      this.lifeTimer -= dt;
+      if (this.lifeTimer <= 0) this.startFading();
+    }
+  }
+
+  clampToScreen() {
+    if (!this.textWidth) return;
+    if (this.x < PADDING)                      { this.x = PADDING;                     this.vx =  Math.abs(this.vx); }
+    if (this.x + this.textWidth > W - PADDING) { this.x = W - PADDING - this.textWidth; this.vx = -Math.abs(this.vx); }
+    if (this.y - this.fontSize  < PADDING)     { this.y = PADDING + this.fontSize;      this.vy =  Math.abs(this.vy); }
+    if (this.y + 10             > H - PADDING) { this.y = H - PADDING - 10;             this.vy = -Math.abs(this.vy); }
+  }
+
+  get squiggleColor() {
+    const t = this.ageFactor; // 0 = fresh, 1 = aged (colors desaturate slightly)
+    const fade = 1 - t * 0.25;
+    if (this.isCompound) return `rgba(${Math.round(160*fade)},${Math.round(40*fade)},${Math.round(160*fade)},${this.opacity})`; // purple — compound confusion
+    switch (this.type) {
+      case 'verb':      return `rgba(${Math.round(220*fade)},${Math.round(20*fade)},${Math.round(20*fade)},${this.opacity})`;   // red — classic spelling error energy
+      case 'noun':      return `rgba(${Math.round(30*fade)},${Math.round(80*fade)},${Math.round(210*fade)},${this.opacity})`;   // blue — Word grammar/suggestion
+      case 'adjective': return `rgba(${Math.round(30*fade)},${Math.round(150*fade)},${Math.round(60*fade)},${this.opacity})`;   // green — Word style suggestion
+      case 'phrase':    return `rgba(${Math.round(200*fade)},${Math.round(100*fade)},${Math.round(0*fade)},${this.opacity})`;   // orange — in a class of its own
+      default:          return `rgba(${Math.round(200*fade)},${Math.round(20*fade)},${Math.round(20*fade)},${this.opacity})`;
+    }
+  }
+
+  draw() {
+    if (this.state === 'dead' || this.opacity < 0.01) return;
+    this.ensureWidth();
+    ctx.save();
+    ctx.globalAlpha = this.opacity;
+    ctx.font = wordFont(this.fontSize, this.isCompound);
+    ctx.fillStyle = this.isCompound ? 'rgba(100,50,50,1)' : 'rgba(44,44,44,1)';
+    ctx.fillText(this.word, this.x, this.y);
+    this.drawSquiggle();
+    ctx.restore();
+    if (this.transAlpha > 0.02) this.drawTranslation();
+  }
+
+  drawSquiggle() {
+    const baseY = this.y + 6;
+    const x0    = this.x - 2;
+    const x1    = this.x + this.textWidth + 2;
+    const amp   = this.sqAmp + this.agitation * 4.0;
+    const step  = 2.5;
+    const color = this.squiggleColor;
+    const lw    = this.sqLineWidth + this.agitation * 1.0;
+
+    const drawLine = (yOffset) => {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = lw;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      let ni = 0, first = true;
+      for (let x = x0; x <= x1; x += step) {
+        const noise = this.sqNoise[ni++ % this.sqNoise.length];
+        const tt    = (x - x0) / (x1 - x0);
+        const edge  = Math.min(tt * 5, 1) * Math.min((1-tt) * 5, 1);
+        const y     = baseY + yOffset + (Math.sin(x * this.sqFreq + this.sqPhase) * amp + noise) * edge;
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    };
+
+    drawLine(0);
+  }
+
+  drawTranslation() {
+    if (!this.definition) return;
+    ctx.save();
+    ctx.globalAlpha = this.transAlpha;
+    const defSize  = 12;
+    const maxWidth = Math.min(230, W - 40);
+    ctx.font = `italic ${defSize}px Georgia, "Times New Roman", serif`;
+    // Word-wrap
+    const words = this.definition.split(' ');
+    const lines  = [];
+    let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+      else line = test;
+    }
+    if (line) lines.push(line);
+    const lineH = defSize + 4;
+    const boxH  = lines.length * lineH + 12;
+    const boxW  = maxWidth + 18;
+    let bx = this.x - 4;
+    let by = this.y + 14;
+    if (bx + boxW > W - 8) bx = W - 8 - boxW;
+    if (bx < 8)            bx = 8;
+    if (by + boxH > H - 8) by = this.top - boxH - 8;
+    if (by < 8)            by = 8;
+    ctx.fillStyle   = 'rgba(251,247,235,0.97)';
+    ctx.strokeStyle = 'rgba(200,0,30,0.25)';
+    ctx.lineWidth   = 1;
+    roundRect(ctx, bx, by, boxW, boxH, 4); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#555';
+    for (let i = 0; i < lines.length; i++)
+      ctx.fillText(lines[i], bx + 9, by + defSize + 5 + i * lineH);
+    ctx.restore();
+  }
+
+  tap() {
+    this.agitation  = 1.0;
+    this.transTimer = 7000;
+    playAhem();
+  }
+
+  canCollideWith(other) {
+    return Date.now() - (this.lastCollisions[other.id] || 0) > 1200;
+  }
+
+  startFading() {
+    if (this.state !== 'fading' && this.state !== 'dead') {
+      this.state = 'fading';
+      playWordFade();
+    }
+  }
+}
+
+// ================================================================
+// === EJECTED CONFESSION ===
+// ================================================================
+
+class Ejection {
+  constructor(x, y, text, vx, vy) {
+    this.x    = x; this.y = y;
+    this.text = text;
+    this.vx   = vx; this.vy = vy;
+    this.life = 1.0;
+    this.rot  = (Math.random() - 0.5) * 0.3;
+    this.rotV = (Math.random() - 0.5) * 0.006;
+  }
+
+  update(dt) {
+    const t16 = dt / 16;
+    this.x    += this.vx * t16;
+    this.y    += this.vy * t16;
+    this.vy   += 0.018 * t16;  // gentle gravity
+    this.vx   *= 0.975;        // decelerate — readable as it drifts
+    this.vy   *= 0.975;
+    this.rot  += this.rotV * t16;
+    this.rotV *= 0.985;        // rotation also slows
+    this.life -= 0.0014 * (dt / 16); // longer life
+  }
+
+  get dead() { return this.life <= 0; }
+
+  get alpha() {
+    if (this.life > 0.92) return (1 - this.life) / 0.08; // quick fade in
+    if (this.life < 0.25) return this.life / 0.25;        // gentle fade out
+    return 1;
+  }
+
+  draw() {
+    if (this.alpha < 0.02) return;
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.font      = 'italic 11px Georgia, "Times New Roman", serif';
+    ctx.fillStyle = 'rgba(160,50,50,1)';
+    ctx.textAlign = 'center';
+    ctx.fillText(`"${this.text}"`, 0, 0);
+    ctx.restore();
+  }
+}
+
+// ================================================================
+// === HELPERS ===
+// ================================================================
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
+}
+
+// ================================================================
+// === SCENE STATE ===
+// ================================================================
+
+let activeWords       = [];
+let ejections         = [];
+let activeCorpusIdxs  = new Set(); // indices currently visible on screen
+let usedCorpusIdxs    = new Set(); // indices used this cycle
+
+let sceneState = 'loading';  // 'loading' | 'playing' | 'resetting'
+let resetTimer = 0;
+let flashAlpha = 0;
+let promptAlpha = 1;
+
+function wordTarget() {
+  return Math.min(8, Math.max(3, Math.floor(CORPUS.length * 0.38)));
+}
+
+function pickUnusedEntry() {
+  // Prefer entries not on screen AND not yet used this cycle
+  let avail = CORPUS.map((_,i) => i)
+    .filter(i => !activeCorpusIdxs.has(i) && !usedCorpusIdxs.has(i));
+  if (avail.length === 0) {
+    // All used this cycle — reset used set but still avoid on-screen words
+    usedCorpusIdxs.clear();
+    avail = CORPUS.map((_,i) => i).filter(i => !activeCorpusIdxs.has(i));
+  }
+  if (avail.length === 0) return null; // entire corpus is on screen
+  const idx = avail[Math.floor(Math.random() * avail.length)];
+  usedCorpusIdxs.add(idx);
+  return { ...CORPUS[idx], _idx: idx };
+}
+
+function spawnWord(entry) {
+  const e    = entry || pickUnusedEntry();
+  if (!e) return;
+  const word = new Word(e, false);
+  if (word.corpusIdx >= 0) activeCorpusIdxs.add(word.corpusIdx);
+
+  const estW   = word.word.length * word.fontSize * 0.58;
+  const margin = PADDING + 12;
+  let best = { x: margin, y: margin + word.fontSize };
+  let bestDist = 0;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const tx = margin + Math.random() * Math.max(0, W - estW - margin * 2);
+    const ty = margin + word.fontSize + Math.random() * Math.max(0, H - margin * 2 - word.fontSize - 20);
+    let minDist = Infinity;
+    for (const w of activeWords) minDist = Math.min(minDist, Math.hypot(tx - w.x, ty - w.y));
+    if (!activeWords.length) minDist = 9999;
+    if (minDist > bestDist) { bestDist = minDist; best = { x: tx, y: ty }; }
+    if (minDist > 110) break;
+  }
+  word.x = best.x; word.y = best.y;
+  activeWords.push(word);
+}
+
+function firstSentence(def) {
+  // Extract up to the first period, question mark, or em-dash; cap at ~80 chars
+  const m = def.match(/^[^.!?—]{10,80}[.!?—]?/);
+  let s = m ? m[0].trim() : def.slice(0, 80).trim();
+  // Strip trailing punctuation so we can re-punctuate in context
+  s = s.replace(/[.!?,;—]+$/, '');
+  return s;
+}
+
+function makeCompoundDefinition(a, b) {
+  const fragA = firstSentence(a.definition);
+  const fragB = firstSentence(b.definition);
+  const connectors = [
+    `${fragA}. Consequently, ${fragB.charAt(0).toLowerCase() + fragB.slice(1)}.`,
+    `${fragA}. See also: ${fragB.charAt(0).toLowerCase() + fragB.slice(1)}.`,
+    `When "${a.word}" meets "${b.word}": ${fragA.charAt(0).toLowerCase() + fragA.slice(1)}, and also ${fragB.charAt(0).toLowerCase() + fragB.slice(1)}.`,
+    `${fragA}. The result: ${fragB.charAt(0).toLowerCase() + fragB.slice(1)}.`,
+    `Technically, ${fragA.charAt(0).toLowerCase() + fragA.slice(1)}. In practice, ${fragB.charAt(0).toLowerCase() + fragB.slice(1)}.`,
+  ];
+  return connectors[Math.floor(Math.random() * connectors.length)];
+}
+
+function handleCollision(a, b) {
+  // Record so cooldown applies
+  const now = Date.now();
+  a.lastCollisions[b.id] = now;
+  b.lastCollisions[a.id] = now;
+
+  // Center of collision
+  const cx = ((a.x + a.textWidth/2) + (b.x + b.textWidth/2)) / 2;
+  const cy = ((a.top + a.bottom)/2  + (b.top + b.bottom)/2)  / 2;
+
+  // Compound word — synthesize definition from both sources
+  const compoundWord = a.word + '·' + b.word;
+  const compoundDef  = makeCompoundDefinition(a, b);
+  const compound = new Word({ word: compoundWord, type: 'compound', definition: compoundDef, _idx: -1 }, true);
+  compound.x = Math.max(PADDING, Math.min(W - PADDING - compoundWord.length * compound.fontSize * 0.55, cx - compoundWord.length * compound.fontSize * 0.28));
+  compound.y = Math.max(PADDING + compound.fontSize, Math.min(H - PADDING - 16, cy));
+  activeWords.push(compound);
+
+  // Eject confession — perpendicular to collision vector
+  const dx   = (b.x + b.textWidth/2) - (a.x + a.textWidth/2) || 0.1;
+  const dy   = (b.y - b.fontSize/2)  - (a.y - a.fontSize/2)  || 0.1;
+  const len  = Math.hypot(dx, dy);
+  const perpX = -dy / len;
+  const perpY =  dx / len;
+  const speed = 1.8 + Math.random() * 1.4;
+  const dir   = Math.random() < 0.5 ? 1 : -1;
+  const conf  = CONFESSIONS[Math.floor(Math.random() * CONFESSIONS.length)];
+  ejections.push(new Ejection(cx, cy, conf, perpX * speed * dir, perpY * speed * dir - 1.0));
+
+  // Fade both originals
+  a.startFading();
+  b.startFading();
+
+  playCollision();
+}
+
+function checkCollisions() {
+  for (let i = 0; i < activeWords.length; i++) {
+    for (let j = i + 1; j < activeWords.length; j++) {
+      const a = activeWords[i], b = activeWords[j];
+      if (a.isCompound || b.isCompound)    continue;
+      if (a.state !== 'floating' && a.state !== 'flying') continue;
+      if (b.state !== 'floating' && b.state !== 'flying') continue;
+      if (!a.textWidth || !b.textWidth)    continue;
+      if (!a.canCollideWith(b))            continue;
+      if (!a.overlaps(b))                  continue;
+      handleCollision(a, b);
+    }
+  }
+}
+
+function startReset() {
+  sceneState = 'resetting';
+  resetTimer = 3000;
+  flashAlpha = 0.55;
+  playReset();
+}
+
+function updateScene(dt) {
+  if (sceneState === 'resetting') {
+    resetTimer -= dt;
+    if (resetTimer <= 0) {
+      sceneState = 'playing';
+      activeCorpusIdxs.clear();
+      usedCorpusIdxs.clear();
+      const target = wordTarget();
+      for (let i = 0; i < target; i++) setTimeout(() => spawnWord(), i * 220);
+    }
+    return;
+  }
+
+  for (const w of activeWords) w.update(dt);
+
+  // Remove dead words and free their corpus index
+  activeWords = activeWords.filter(w => {
+    if (w.state === 'dead') {
+      if (w.corpusIdx >= 0) activeCorpusIdxs.delete(w.corpusIdx);
+      return false;
+    }
+    return true;
+  });
+
+  // Maintain word count — only spawn plain words
+  const visiblePlain = activeWords.filter(w => !w.isCompound && w.state !== 'fading').length;
+  const target = wordTarget();
+  if (visiblePlain < target && Math.random() < 0.020) spawnWord();
+
+  // All gone? Reset.
+  if (activeWords.length === 0 && sceneState === 'playing') startReset();
+
+  checkCollisions();
+
+  for (const e of ejections) e.update(dt);
+  ejections = ejections.filter(e => !e.dead);
+}
+
+// ================================================================
+// === PAPER TEXTURE ===
+// ================================================================
+
+let paperPattern = null;
+
+function buildPaperTexture() {
+  const sz  = 512;
+  const off = document.createElement('canvas');
+  off.width = sz; off.height = sz;
+  const oc  = off.getContext('2d');
+
+  // Legal pad yellow base
+  oc.fillStyle = '#fdf6c3';
+  oc.fillRect(0, 0, sz, sz);
+
+  // Fine paper tooth
+  for (let i = 0; i < 4000; i++) {
+    const a = 0.008 + Math.random() * 0.022;
+    oc.fillStyle = `rgba(180,160,60,${a})`;
+    oc.fillRect(Math.random()*sz, Math.random()*sz, 1, 1);
+  }
+
+  // Ruled blue lines — legal pad spacing ~28px
+  oc.strokeStyle = 'rgba(160,190,230,0.55)';
+  oc.lineWidth = 0.75;
+  for (let y = 28; y < sz; y += 28) {
+    oc.beginPath(); oc.moveTo(0, y); oc.lineTo(sz, y); oc.stroke();
+  }
+
+  // Red margin line — classic legal pad, about 20% from left
+  oc.strokeStyle = 'rgba(220,80,80,0.35)';
+  oc.lineWidth = 1.0;
+  const mx = Math.round(sz * 0.20);
+  oc.beginPath(); oc.moveTo(mx, 0); oc.lineTo(mx, sz); oc.stroke();
+
+  paperPattern = ctx.createPattern(off, 'repeat');
+}
+
+// ================================================================
+// === DRAW ===
+// ================================================================
+
+function draw() {
+  ctx.fillStyle = '#fdf6c3';
+  ctx.fillRect(0, 0, W, H);
+  if (paperPattern) { ctx.fillStyle = paperPattern; ctx.fillRect(0, 0, W, H); }
+
+  if (flashAlpha > 0) {
+    ctx.fillStyle = `rgba(200,0,30,${flashAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+    flashAlpha = Math.max(0, flashAlpha - 0.018);
+  }
+
+  if (sceneState === 'loading' && promptAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = promptAlpha;
+    ctx.font      = 'italic 15px Georgia, "Times New Roman", serif';
+    ctx.fillStyle = '#c8001e';
+    ctx.textAlign = 'center';
+    ctx.fillText('tap a word', W/2, H - 36);
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }
+
+  if (sceneState === 'resetting') {
+    const fade = Math.min(1, (3000 - resetTimer) / 500) * Math.min(1, resetTimer / 400);
+    if (fade > 0.02) {
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.font      = 'italic 14px Georgia, "Times New Roman", serif';
+      ctx.fillStyle = '#c8001e';
+      ctx.textAlign = 'center';
+      ctx.fillText('document cleared', W/2, H/2);
+      ctx.textAlign = 'left';
+      ctx.restore();
+    }
+  }
+
+  for (const w of activeWords) w.draw();
+  for (const e of ejections)   e.draw();
+}
+
+// ================================================================
+// === INPUT ===
+// ================================================================
+
+let draggedWord = null, ptrStartX = 0, ptrStartY = 0;
+
+function canvasPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
+}
+
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  initAudio(); resumeAudio();
+  if (sceneState === 'loading') {
+    sceneState = 'playing';
+    promptAlpha = 0;
+  }
+  const { x, y } = canvasPoint(e);
+  for (let i = activeWords.length - 1; i >= 0; i--) {
+    const w = activeWords[i];
+    if (w.state === 'dead' || w.state === 'fading') continue;
+    if (!w.hitTest(x, y)) continue;
+    draggedWord   = w;
+    w.state       = 'held';
+    w.dragOffsetX = x - w.x;
+    w.dragOffsetY = y - w.y;
+    w.ptrHistory  = [{ x, y, t: performance.now() }];
+    w.didMove     = false;
+    ptrStartX = x; ptrStartY = y;
+    canvas.setPointerCapture(e.pointerId);
+    break;
+  }
+});
+
+canvas.addEventListener('pointermove', e => {
+  if (!draggedWord) return;
+  e.preventDefault();
+  const { x, y } = canvasPoint(e);
+  draggedWord.x = x - draggedWord.dragOffsetX;
+  draggedWord.y = y - draggedWord.dragOffsetY;
+  draggedWord.ptrHistory.push({ x, y, t: performance.now() });
+  if (draggedWord.ptrHistory.length > 8) draggedWord.ptrHistory.shift();
+  if (Math.hypot(x - ptrStartX, y - ptrStartY) > 9) draggedWord.didMove = true;
+});
+
+canvas.addEventListener('pointerup', e => {
+  if (!draggedWord) return;
+  e.preventDefault();
+  if (!draggedWord.didMove) {
+    for (const w of activeWords) w.transTimer = 0;  // dismiss any open definition
+    draggedWord.tap();
+    draggedWord.state = 'floating';
+  } else {
+    const vel = computeVelocity(draggedWord.ptrHistory);
+    draggedWord.vx = vel.vx; draggedWord.vy = vel.vy;
+    draggedWord.state = 'flying';
+    if (Math.abs(vel.vx) + Math.abs(vel.vy) > 1.5) playFling();
+  }
+  draggedWord = null;
+});
+
+canvas.addEventListener('pointercancel', () => {
+  if (draggedWord) { draggedWord.state = 'floating'; draggedWord = null; }
+});
+
+function computeVelocity(history) {
+  if (history.length < 2) return { vx: 0, vy: 0 };
+  const recent = history.slice(-4);
+  const dt     = recent[recent.length-1].t - recent[0].t;
+  if (dt < 5) return { vx: 0, vy: 0 };
+  const dx = recent[recent.length-1].x - recent[0].x;
+  const dy = recent[recent.length-1].y - recent[0].y;
+  const sc = (16 / dt) * 0.85;
+  const mx = 20;
+  return { vx: Math.max(-mx, Math.min(mx, dx*sc)), vy: Math.max(-mx, Math.min(mx, dy*sc)) };
+}
+
+// ================================================================
+// === SHAKE (Android; degrades gracefully on iOS without permission)
+// ================================================================
+
+let lastShakeMs = 0, lastAccel = { x:0, y:0, z:0 };
+
+function setupShake() {
+  if (typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission !== 'function') {
+    window.addEventListener('devicemotion', e => {
+      const acc = e.accelerationIncludingGravity;
+      if (!acc) return;
+      const now = Date.now();
+      if (now - lastShakeMs < 1200) return;
+      const d = Math.abs((acc.x||0) - lastAccel.x) +
+                Math.abs((acc.y||0) - lastAccel.y) +
+                Math.abs((acc.z||0) - lastAccel.z);
+      lastAccel = { x: acc.x||0, y: acc.y||0, z: acc.z||0 };
+      if (d > 32) { lastShakeMs = now; onShake(); }
+    });
+  }
+}
+
+function onShake() {
+  for (const w of activeWords) {
+    if (w.state !== 'floating' && w.state !== 'flying') continue;
+    const a = Math.random() * Math.PI * 2;
+    w.vx = Math.cos(a) * (6 + Math.random() * 8);
+    w.vy = Math.sin(a) * (6 + Math.random() * 8);
+    w.state = 'flying'; w.agitation = 0.7;
+  }
+  playFling();
+}
+
+// ================================================================
+// === MAIN LOOP ===
+// ================================================================
+
+let lastTs = 0;
+function loop(ts) {
+  const dt = lastTs ? Math.min(ts - lastTs, 100) : 16;
+  lastTs = ts;
+  updateScene(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ================================================================
+// === INIT ===
+// ================================================================
+
+async function init() {
+  resize();
+  buildPaperTexture();
+  setupShake();
+  const target = wordTarget();
+  for (let i = 0; i < target; i++) setTimeout(() => spawnWord(), 200 + i * 260);
+  requestAnimationFrame(loop);
+}
+
+init();
+</script>
+</body>
+</html>
