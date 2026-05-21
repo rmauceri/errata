@@ -15,10 +15,34 @@
       user-select: none;
     }
     canvas { display: block; touch-action: none; }
+    #yodaBtn {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #4a7c3f;
+      color: #e8f5e4;
+      border: none;
+      border-radius: 20px;
+      padding: 9px 26px;
+      font: italic 15px Georgia, "Times New Roman", serif;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      opacity: 0.82;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      transition: opacity 0.15s, background 0.25s;
+      z-index: 10;
+    }
+    #yodaBtn:active { opacity: 1; }
+    #yodaBtn.active { background: #2d5a24; color: #c8e8c2; }
   </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<button id="yodaBtn">koan</button>
 <script src="assets/corpus.js"></script>
 <script>
 'use strict';
@@ -90,7 +114,41 @@ function nextConfession() {
 }
 
 // ================================================================
-// === CANVAS SETUP ===
+// === YODA TEMPLATES (koan mode)
+// Each template: array of lines; each line: array of strings (connecting
+// words) and numbers (index into the shuffled word array).
+// ================================================================
+
+const YODA_TEMPLATES = {
+  2: [
+    [[0, ', the essence of ', 1, ' this is. Hmm.']],
+    [['Strong in ', 0, ' you are. Yet ', 1, '... clouds your path, it does.']],
+  ],
+  3: [
+    [[0, ', the ', 1, ' of ', 2, ' — this is.']],
+    [['Much ', 0, ' there is. ', 1, ' leads to ', 2, '. The dark side, this is.']],
+  ],
+  4: [
+    [[0, ', the ', 1, ' of ', 2, ' it is.'], ['But ', 3, '... hmm.']],
+    [['Much ', 0, ' there is.'], [1, ' leads to ', 2, '. ', 3, ', this path is.']],
+  ],
+  5: [
+    [[0, ', the ', 1, ' of ', 2, ' — this is.'], ['But ', 3, '... ', 4, ', hmm.']],
+    [['Much ', 0, ' there is.'], [1, ' leads to ', 2, '.'], ['Without ', 3, ', ', 4, ' you cannot have.']],
+  ],
+  6: [
+    [['Much ', 0, ' there is.'], ['Yet ', 1, ' without ', 2, ','], [3, ' leads to ', 4, '. ', 5, ', this is.']],
+    [[0, ' and ', 1, ' — the same, they are.'], [2, ' of ', 3, ' I speak.'], ['Confused, ', 4, ' makes you. ', 5, ', beware.']],
+  ],
+  7: [
+    [[0, ' and ', 1, ' — the same, they are.'], [2, ' of ', 3, ' I speak.'], ['Yet ', 4, ' without ', 5, '... ', 6, ', you must find.']],
+    [[0, ', the ', 1, ' of ', 2, ' it is.'], [3, ' leads to ', 4, '.'], ['Strong in ', 5, ' you are, but ', 6, '... hmm.']],
+  ],
+  8: [
+    [[0, ', the ', 1, ' of ', 2, ' it is.'], [3, ' leads to ', 4, '.'], ['But ', 5, ' without ', 6, '... ', 7, ', hmm.']],
+    [['Much ', 0, ' in ', 1, ' I sense.'], [2, ' and ', 3, ' — confused, they are.'], [4, ' leads to ', 5, '. ', 6, ' clouds ', 7, '.']],
+  ],
+};
 // ================================================================
 
 const canvas = document.getElementById('c');
@@ -361,6 +419,14 @@ class Word {
       }
     }
 
+    // Yoda mode: slide smoothly to koan target position
+    if (yodaMode && this.targetX !== undefined && this.state !== 'held') {
+      const lf = Math.min(1, 0.07 * t16);
+      this.x += (this.targetX - this.x) * lf;
+      this.y += (this.targetY - this.y) * lf;
+      this.vx = 0; this.vy = 0;
+    }
+
     const phaseRate = this.state === 'flying' ? this.sqSpeed * 3 : this.sqSpeed;
     this.sqPhase += phaseRate * t16 * (1 + this.agitation * 2);
     this.agitation = Math.max(0, this.agitation - dt * 0.0020);
@@ -578,6 +644,8 @@ let sceneState = 'loading';  // 'loading' | 'playing' | 'resetting'
 let resetTimer = 0;
 let flashAlpha = 0;
 let promptAlpha = 1;
+let yodaMode   = false;
+let koansLayout = null;
 
 function wordTarget() {
   const cap = W < 480 ? 5 : W < 768 ? 6 : 8;
@@ -726,15 +794,17 @@ function updateScene(dt) {
     return true;
   });
 
-  // Maintain word count — only spawn plain words
-  const visiblePlain = activeWords.filter(w => !w.isCompound && w.state !== 'fading').length;
-  const target = wordTarget();
-  if (visiblePlain < target && Math.random() < 0.020) spawnWord();
+  if (!yodaMode) {
+    // Maintain word count — only spawn plain words
+    const visiblePlain = activeWords.filter(w => !w.isCompound && w.state !== 'fading').length;
+    const target = wordTarget();
+    if (visiblePlain < target && Math.random() < 0.020) spawnWord();
 
-  // All gone? Reset.
-  if (activeWords.length === 0 && sceneState === 'playing') startReset();
+    // All gone? Reset.
+    if (activeWords.length === 0 && sceneState === 'playing') startReset();
 
-  checkCollisions();
+    checkCollisions();
+  }
 
   for (const e of ejections) e.update(dt);
   ejections = ejections.filter(e => !e.dead);
@@ -819,12 +889,134 @@ function draw() {
     }
   }
 
+  drawKoan();
   for (const w of activeWords) w.draw();
   for (const e of ejections)   e.draw();
 }
 
 // ================================================================
-// === INPUT ===
+// === YODA MODE ===
+// ================================================================
+
+function buildKoanLayout(words) {
+  const n = Math.max(2, Math.min(words.length, 8));
+  const tmplSet = YODA_TEMPLATES[n];
+  if (!tmplSet) return null;
+  const templateLines = tmplSet[Math.floor(Math.random() * tmplSet.length)];
+
+  // Replace number tokens with word objects
+  const lines = templateLines.map(line =>
+    line.map(tok => typeof tok === 'number' ? words[tok] : tok)
+  );
+
+  const connectFont = 'italic 15px Georgia, "Times New Roman", serif';
+  const lineHeight  = 56;
+  const numLines    = lines.length;
+  const startY      = H / 2 - ((numLines - 1) / 2) * lineHeight;
+
+  const layout = [];
+  ctx.save();
+  for (let li = 0; li < lines.length; li++) {
+    const y    = startY + li * lineHeight;
+    const line = lines[li];
+
+    // Measure total line width for centering
+    let totalW = 0;
+    for (const tok of line) {
+      if (typeof tok === 'string') {
+        ctx.font = connectFont;
+        totalW += ctx.measureText(tok).width;
+      } else {
+        ctx.font = wordFont(tok.fontSize, tok.isCompound);
+        totalW += ctx.measureText(tok.word).width;
+      }
+    }
+
+    let x = Math.max(16, W / 2 - totalW / 2);
+    const tokens = [];
+    for (const tok of line) {
+      if (typeof tok === 'string') {
+        ctx.font = connectFont;
+        const w = ctx.measureText(tok).width;
+        tokens.push({ type: 'text', content: tok, x, y });
+        x += w;
+      } else {
+        ctx.font = wordFont(tok.fontSize, tok.isCompound);
+        const w = ctx.measureText(tok.word).width;
+        tok.targetX    = x;
+        tok.targetY    = y;
+        tok.yodaPinned = false;
+        tokens.push({ type: 'word', word: tok });
+        x += w;
+      }
+    }
+    layout.push({ y, tokens });
+  }
+  ctx.restore();
+  return layout;
+}
+
+function enterYodaMode() {
+  const ws = activeWords.filter(w => w.state !== 'dead' && w.state !== 'fading');
+  if (ws.length < 2) return;
+
+  // Shuffle
+  const shuffled = [...ws];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const words = shuffled.slice(0, 8);
+
+  // Calm all words before arranging
+  for (const w of words) {
+    w.vx = 0; w.vy = 0;
+    if (w.state === 'flying') w.state = 'floating';
+  }
+
+  // Dismiss any open definition
+  for (const w of activeWords) w.transTimer = 0;
+
+  yodaMode    = true;
+  koansLayout = buildKoanLayout(words);
+
+  const btn = document.getElementById('yodaBtn');
+  btn.classList.add('active');
+  btn.textContent = 'scatter';
+}
+
+function exitYodaMode() {
+  yodaMode    = false;
+  koansLayout = null;
+  for (const w of activeWords) {
+    delete w.targetX; delete w.targetY; w.yodaPinned = false;
+    if (w.state === 'floating' || w.state === 'flying') {
+      const a = Math.random() * Math.PI * 2;
+      w.vx = Math.cos(a) * (2 + Math.random() * 4);
+      w.vy = Math.sin(a) * (2 + Math.random() * 4);
+      w.state     = 'flying';
+      w.agitation = 0.5;
+    }
+  }
+  const btn = document.getElementById('yodaBtn');
+  btn.classList.remove('active');
+  btn.textContent = 'koan';
+  playFling();
+}
+
+function drawKoan() {
+  if (!yodaMode || !koansLayout) return;
+  ctx.save();
+  ctx.font      = 'italic 15px Georgia, "Times New Roman", serif';
+  ctx.fillStyle = 'rgba(70, 70, 70, 0.82)';
+  for (const line of koansLayout) {
+    for (const tok of line.tokens) {
+      if (tok.type === 'text') ctx.fillText(tok.content, tok.x, tok.y);
+      // word tokens draw themselves via the w.draw() loop
+    }
+  }
+  ctx.restore();
+}
 // ================================================================
 
 let draggedWord = null, ptrStartX = 0, ptrStartY = 0;
@@ -877,10 +1069,18 @@ canvas.addEventListener('pointerup', e => {
     draggedWord.tap();
     draggedWord.state = 'floating';
   } else {
-    const vel = computeVelocity(draggedWord.ptrHistory);
-    draggedWord.vx = vel.vx; draggedWord.vy = vel.vy;
-    draggedWord.state = 'flying';
-    if (Math.abs(vel.vx) + Math.abs(vel.vy) > 1.5) playFling();
+    if (yodaMode) {
+      // In yoda mode, word stays where dropped (pinned)
+      draggedWord.yodaPinned = true;
+      delete draggedWord.targetX;
+      delete draggedWord.targetY;
+      draggedWord.state = 'floating';
+    } else {
+      const vel = computeVelocity(draggedWord.ptrHistory);
+      draggedWord.vx = vel.vx; draggedWord.vy = vel.vy;
+      draggedWord.state = 'flying';
+      if (Math.abs(vel.vx) + Math.abs(vel.vy) > 1.5) playFling();
+    }
   }
   draggedWord = null;
 });
@@ -925,6 +1125,7 @@ function setupShake() {
 }
 
 function onShake() {
+  if (yodaMode) { exitYodaMode(); return; }
   for (const w of activeWords) {
     if (w.state !== 'floating' && w.state !== 'flying') continue;
     const a = Math.random() * Math.PI * 2;
@@ -959,6 +1160,13 @@ async function init() {
   const target = wordTarget();
   for (let i = 0; i < target; i++) setTimeout(() => spawnWord(), 200 + i * 260);
   requestAnimationFrame(loop);
+
+  document.getElementById('yodaBtn').addEventListener('click', () => {
+    if (sceneState === 'loading') { sceneState = 'playing'; promptAlpha = 0; }
+    initAudio(); resumeAudio();
+    if (yodaMode) exitYodaMode();
+    else enterYodaMode();
+  });
 }
 
 init();
