@@ -120,14 +120,14 @@ function nextConfession() {
 // ================================================================
 
 const YODA_TEMPLATES = [
-  // ── 2 words ───────────────────────────────────────────────
+  // ── 2 words ────────────────────────────────────────────
   { slots: 2, lines: [
     ['n', ', the shadow of ', '*', ' — this is. Hmm.'],
   ]},
   { slots: 2, lines: [
     ['Strong in ', 'n', ' you are. ', '*', '... clouds the path, it does.'],
   ]},
-  // ── 3 words ───────────────────────────────────────────────
+  // ── 3 words ────────────────────────────────────────────
   { slots: 3, lines: [
     ['n', ', the ', 'n', ' — this is.'],
     ['But ', 'v', '... hmm.'],
@@ -136,7 +136,7 @@ const YODA_TEMPLATES = [
     ['Much ', 'n', ' there is.'],
     ['v', ' leads to ', 'n', '.'],
   ]},
-  // ── 4 words ───────────────────────────────────────────────
+  // ── 4 words ────────────────────────────────────────────
   { slots: 4, lines: [
     ['n', ', the ', 'n', ' — this is.'],
     ['v', ' leads to ', 'n', '. Hmm.'],
@@ -146,49 +146,86 @@ const YODA_TEMPLATES = [
     ['v', ' leads to ', 'n', '.'],
     ['Without ', 'a', ', lost you are.'],
   ]},
-  // ── 5 words ───────────────────────────────────────────────
+  // ── 5-8 words: Dean's templates ───────────────────────
+  // T10
   { slots: 5, lines: [
-    ['n', ', the ', 'n', ' — this is.'],
-    ['v', ' leads to ', 'n', '.'],
-    ['Without ', 'a', ', lost you are.'],
+    ["Seek the ", 'n', " you do — but the ", 'n', " seeks you also. ", 'a', " is the ", 'n', " that ", 'v', "s first."],
   ]},
+  // T13
   { slots: 5, lines: [
-    ['Much ', 'n', ' there is.'],
-    ['n', ' without ', 'v', '...'],
-    ['Strong in ', 'a', ', you are. Hmm.'],
+    ['v', " the ", 'n', " you must — but not before you ", 'v', " the ", 'n', ". The ", 'a', " path requires both, in that order."],
   ]},
-  // ── 6 words ───────────────────────────────────────────────
+  // T19
+  { slots: 5, lines: [
+    ["Three things there are that ", 'v', " the ", 'n', ": ", 'n', ", ", 'n', ", and the belief that one has enough ", 'n', ". Hmmm."],
+  ]},
+  // T1
   { slots: 6, lines: [
-    ['n', ' and ', 'n', ' — the same, they are.'],
-    ['a', ' of ', 'n', ' I speak.'],
-    ['Yet ', 'v', '... ', 'n', ', hmm.'],
+    ['n', ", the ", 'n', " of ", 'n', " — this is. Much ", 'a', " there is. ", 'v', " leads to ", 'n', "."],
   ]},
+  // T2
   { slots: 6, lines: [
-    ['Much ', 'n', ' there is.'],
-    ['v', ' leads to ', 'n', '.'],
-    ['a', '... ', 'n', ' clouds ', 'n', '. Beware.'],
+    ["The ", 'n', " who ", 'v', "s without ", 'n', " is like a ", 'n', " with no ", 'n', ". ", 'a', ", the outcome will be."],
   ]},
-  // ── 7 words ───────────────────────────────────────────────
+  // T3
+  { slots: 6, lines: [
+    ["Hmmm. ", 'v', " you seek, yet ", 'n', " is what finds you. The ", 'a', " ", 'n', " knows this. The ", 'a', " ", 'n', " does not."],
+  ]},
+  // T5
+  { slots: 6, lines: [
+    ["Much ", 'n', " the ", 'a', " ", 'n', " carries. Yet the ", 'a', " ", 'n', " carries only ", 'n', ". Which is heavier, hmmm?"],
+  ]},
+  // T6
+  { slots: 6, lines: [
+    ["The ", 'n', " does not ", 'v', ". The ", 'n', " does not ", 'v', ". Only the ", 'n', " in between ", 'v', "s — and suffers."],
+  ]},
+  // T11
+  { slots: 6, lines: [
+    ["Before the ", 'n', " comes the ", 'n', ". Before the ", 'n', " comes the ", 'n', ". The ", 'a', " one skips both. This is why they ", 'v', "."],
+  ]},
+  // T12
+  { slots: 6, lines: [
+    ["A ", 'n', " without ", 'n', " is a ", 'n', " without ", 'n', ". ", 'a', " it may appear. ", 'a', " it truly is."],
+  ]},
+  // T14
+  { slots: 6, lines: [
+    ["The ", 'n', " calls itself ", 'a', ". The ", 'n', " calls itself ", 'a', ". The ", 'n', " alone knows which ", 'v', "s and which does not."],
+  ]},
+  // T4
   { slots: 7, lines: [
-    ['n', ' and ', 'n', ' — the same, they are.'],
-    ['a', ' of ', 'n', ' I speak.'],
-    ['v', ' without ', 'n', '... ', 'a', ', hmm.'],
+    ["When the ", 'n', " is ", 'a', ", the ", 'n', " becomes ", 'a', ". ", 'v', " then, you must not. Wait. ", 'v', ". Then ", 'v', " again."],
   ]},
+  // T7
   { slots: 7, lines: [
-    ['n', ', the ', 'n', ' of ', 'n', ' — this is.'],
-    ['v', ' leads to ', 'a', '.'],
-    ['But ', 'n', ' without ', 'v', '... hmm.'],
+    ["To ", 'v', " the ", 'n', " is ", 'a', ". To ", 'v', " the ", 'n', " is ", 'a', "er. To know the difference — that is ", 'n', "."],
   ]},
-  // ── 8 words ───────────────────────────────────────────────
-  { slots: 8, lines: [
-    ['n', ', the ', 'n', ' of ', 'n', ' — this is.'],
-    ['v', ' leads to ', 'n', '.'],
-    ['But ', 'a', ' without ', 'v', '... ', 'n', ', hmm.'],
+  // T8
+  { slots: 7, lines: [
+    ['a', " the ", 'n', " is, yes. But ", 'a', " the ", 'n', " also is. Between ", 'n', " and ", 'n', ", the wise one ", 'v', "s carefully."],
   ]},
+  // T15
+  { slots: 7, lines: [
+    ["In the ", 'n', " of every ", 'a', " ", 'n', " lives a ", 'a', " ", 'n', ". ", 'v', " it you must before it ", 'v', "s you."],
+  ]},
+  // T16
+  { slots: 7, lines: [
+    ["To have ", 'n', " is ", 'a', ". To have ", 'n', " is ", 'a', "er. To ", 'v', " the difference — this is the ", 'n', " of ", 'n', "."],
+  ]},
+  // T18
+  { slots: 7, lines: [
+    ["When ", 'n', " becomes ", 'a', ", the ", 'n', " is already ", 'a', ". ", 'v', " not toward it. ", 'v', " away, and ", 'n', " will follow."],
+  ]},
+  // T20
+  { slots: 7, lines: [
+    ["The ", 'n', " you ", 'v', "ed became your ", 'n', ". The ", 'n', " you ignored became your ", 'n', ". This is the ", 'n', " of ", 'n', "."],
+  ]},
+  // T9
   { slots: 8, lines: [
-    ['Much ', 'n', ' in ', 'n', ' I sense.'],
-    ['v', ' and ', 'n', ' — confused, they are.'],
-    ['n', ' leads to ', 'a', '. ', 'v', '... ', 'n', ', hmm.'],
+    ["The ", 'a', " ", 'n', " ", 'v', "s. The ", 'a', " ", 'n', " also ", 'v', "s. Yet only one of them understands the ", 'n', " of ", 'n', "."],
+  ]},
+  // T17
+  { slots: 8, lines: [
+    ["The ", 'a', " ", 'n', " ", 'v', "s loudly of ", 'n', ". The ", 'a', " ", 'n', " only ", 'v', "s. Hear which one the ", 'n', " remembers, you will."],
   ]},
 ];
 // ================================================================
@@ -943,6 +980,19 @@ function draw() {
 const CONNECT_FONT  = 'italic 13px Georgia, "Times New Roman", serif';
 const KOAN_MAX_FONT = 17; // cap word font size in koan for layout predictability
 
+// Compute a font size that fits the word within ~70% of the koan line width.
+// Starts at KOAN_MAX_FONT (already capped from original), reduces until it fits.
+function effectiveKoanFontSize(word) {
+  const maxWordW = (W - 56) * 0.70;
+  let sz = Math.min(word.fontSize, KOAN_MAX_FONT);
+  while (sz > 10) {
+    ctx.font = wordFont(sz, word.isCompound);
+    if (ctx.measureText(word.word).width <= maxWordW) break;
+    sz--;
+  }
+  return sz;
+}
+
 function buildTypeBuckets(words) {
   const b = { n: [], v: [], a: [], p: [] };
   for (const w of words) {
@@ -975,7 +1025,8 @@ function measureKoanTok(tok) {
     ctx.font = CONNECT_FONT;
     return ctx.measureText(tok).width;
   }
-  ctx.font = wordFont(Math.min(tok.fontSize, KOAN_MAX_FONT), tok.isCompound);
+  // fontSize already capped in enterYodaMode
+  ctx.font = wordFont(tok.fontSize, tok.isCompound);
   return ctx.measureText(tok.word).width;
 }
 
@@ -1062,6 +1113,10 @@ function enterYodaMode() {
   for (const w of words) {
     w.vx = 0; w.vy = 0;
     if (w.state === 'flying') w.state = 'floating';
+    // Cap font size so layout measurement and rendering match
+    w._konaOrigFontSize = w.fontSize;
+    w.fontSize = effectiveKoanFontSize(w);
+    w.textWidth = 0;
   }
   for (const w of activeWords) w.transTimer = 0;
 
@@ -1080,6 +1135,12 @@ function exitYodaMode() {
   yodaMode    = false;
   koansLayout = null;
   for (const w of activeWords) {
+    // Restore original font size
+    if (w._konaOrigFontSize !== undefined) {
+      w.fontSize = w._konaOrigFontSize;
+      delete w._konaOrigFontSize;
+      w.textWidth = 0;
+    }
     delete w.targetX; delete w.targetY; w.yodaPinned = false;
     if (w.state === 'floating' || w.state === 'flying') {
       const a = Math.random() * Math.PI * 2;
