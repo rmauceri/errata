@@ -529,7 +529,8 @@ let flashAlpha = 0;
 let promptAlpha = 1;
 
 function wordTarget() {
-  return Math.min(8, Math.max(3, Math.floor(CORPUS.length * 0.38)));
+  const cap = W < 480 ? 5 : W < 768 ? 6 : 8;
+  return Math.min(cap, Math.max(3, Math.floor(CORPUS.length * 0.38)));
 }
 
 function pickUnusedEntry() {
