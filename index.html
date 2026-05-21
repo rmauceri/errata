@@ -23,26 +23,27 @@
       background: #4a7c3f;
       color: #e8f5e4;
       border: none;
-      border-radius: 20px;
-      padding: 9px 26px;
-      font: italic 15px Georgia, "Times New Roman", serif;
-      letter-spacing: 0.04em;
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      font: bold 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       cursor: pointer;
-      opacity: 0.82;
+      opacity: 0.85;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-      transition: opacity 0.15s, background 0.25s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+      transition: opacity 0.15s, background 0.25s, box-shadow 0.2s;
       z-index: 10;
     }
     #yodaBtn:active { opacity: 1; }
-    #yodaBtn.active { background: #2d5a24; color: #c8e8c2; }
+    #yodaBtn.active { background: #2d5a24; color: #c8e8c2; box-shadow: 0 0 14px rgba(74,124,63,0.7); }
   </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<button id="yodaBtn">koan</button>
+<button id="yodaBtn">Y</button>
 <script src="assets/corpus.js"></script>
 <script>
 'use strict';
@@ -367,9 +368,56 @@ function playReset() {
   o.connect(lp); lp.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 1.0);
 }
 
-// ================================================================
-// === WORD CLASS ===
-// ================================================================
+function playYodaEnter() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // A deep, resonant minor chord — three tones with slow attack, long bell decay
+  const freqs = [110, 130.8, 164.8]; // A2, C3, E3 — minor feel
+  freqs.forEach((freq, i) => {
+    const o = audioCtx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(i === 0 ? 0.12 : 0.07, now + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 2.8);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(now + i * 0.06); o.stop(now + 2.8);
+  });
+  // Soft breathe-in whisper — high filtered noise rising
+  const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.8), audioCtx.sampleRate);
+  const bd = buf.getChannelData(0);
+  for (let i = 0; i < bd.length; i++) bd[i] = Math.random() * 2 - 1;
+  const src = audioCtx.createBufferSource(); src.buffer = buf;
+  const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3200;
+  const ng = audioCtx.createGain();
+  ng.gain.setValueAtTime(0, now);
+  ng.gain.linearRampToValueAtTime(0.06, now + 0.4);
+  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+  src.connect(hp); hp.connect(ng); ng.connect(audioCtx.destination); src.start(now);
+}
+
+function playYodaExit() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Quick descending sweep — a soft whoosh scatter
+  const o = audioCtx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(480, now);
+  o.frequency.exponentialRampToValueAtTime(60, now + 0.5);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.10, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 0.5);
+  // Rustling noise burst
+  const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.3), audioCtx.sampleRate);
+  const bd = buf.getChannelData(0);
+  for (let i = 0; i < bd.length; i++) bd[i] = Math.random() * 2 - 1;
+  const src = audioCtx.createBufferSource(); src.buffer = buf;
+  const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 0.5;
+  const ng = audioCtx.createGain();
+  ng.gain.setValueAtTime(0.14, now);
+  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  src.connect(bp); bp.connect(ng); ng.connect(audioCtx.destination); src.start(now);
+}
+
 
 const PADDING = 24;
 let wordIdCounter = 0;
@@ -1128,31 +1176,32 @@ function enterYodaMode() {
 
   const btn = document.getElementById('yodaBtn');
   btn.classList.add('active');
-  btn.textContent = 'scatter';
+  playYodaEnter();
 }
 
 function exitYodaMode() {
   yodaMode    = false;
   koansLayout = null;
+
+  // Fade out all current words and spawn a fresh set
   for (const w of activeWords) {
-    // Restore original font size
     if (w._konaOrigFontSize !== undefined) {
       w.fontSize = w._konaOrigFontSize;
       delete w._konaOrigFontSize;
       w.textWidth = 0;
     }
     delete w.targetX; delete w.targetY; w.yodaPinned = false;
-    if (w.state === 'floating' || w.state === 'flying') {
-      const a = Math.random() * Math.PI * 2;
-      w.vx = Math.cos(a) * (2 + Math.random() * 4);
-      w.vy = Math.sin(a) * (2 + Math.random() * 4);
-      w.state = 'flying'; w.agitation = 0.5;
-    }
+    w.startFading();
   }
+  activeCorpusIdxs.clear();
+  usedCorpusIdxs.clear();
+
+  const target = wordTarget();
+  for (let i = 0; i < target; i++) setTimeout(() => spawnWord(), 400 + i * 220);
+
   const btn = document.getElementById('yodaBtn');
   btn.classList.remove('active');
-  btn.textContent = 'koan';
-  playFling();
+  playYodaExit();
 }
 
 function drawKoan() {
