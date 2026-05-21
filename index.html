@@ -115,40 +115,82 @@ function nextConfession() {
 
 // ================================================================
 // === YODA TEMPLATES (koan mode)
-// Each template: array of lines; each line: array of strings (connecting
-// words) and numbers (index into the shuffled word array).
+// Slots: 'n' = noun/compound, 'v' = verb, 'a' = adjective, '*' = any
+// Each template declares total slot count for selection.
 // ================================================================
 
-const YODA_TEMPLATES = {
-  2: [
-    [[0, ', the essence of ', 1, ' this is. Hmm.']],
-    [['Strong in ', 0, ' you are. Yet ', 1, '... clouds your path, it does.']],
-  ],
-  3: [
-    [[0, ', the ', 1, ' of ', 2, ' — this is.']],
-    [['Much ', 0, ' there is. ', 1, ' leads to ', 2, '. The dark side, this is.']],
-  ],
-  4: [
-    [[0, ', the ', 1, ' of ', 2, ' it is.'], ['But ', 3, '... hmm.']],
-    [['Much ', 0, ' there is.'], [1, ' leads to ', 2, '. ', 3, ', this path is.']],
-  ],
-  5: [
-    [[0, ', the ', 1, ' of ', 2, ' — this is.'], ['But ', 3, '... ', 4, ', hmm.']],
-    [['Much ', 0, ' there is.'], [1, ' leads to ', 2, '.'], ['Without ', 3, ', ', 4, ' you cannot have.']],
-  ],
-  6: [
-    [['Much ', 0, ' there is.'], ['Yet ', 1, ' without ', 2, ','], [3, ' leads to ', 4, '. ', 5, ', this is.']],
-    [[0, ' and ', 1, ' — the same, they are.'], [2, ' of ', 3, ' I speak.'], ['Confused, ', 4, ' makes you. ', 5, ', beware.']],
-  ],
-  7: [
-    [[0, ' and ', 1, ' — the same, they are.'], [2, ' of ', 3, ' I speak.'], ['Yet ', 4, ' without ', 5, '... ', 6, ', you must find.']],
-    [[0, ', the ', 1, ' of ', 2, ' it is.'], [3, ' leads to ', 4, '.'], ['Strong in ', 5, ' you are, but ', 6, '... hmm.']],
-  ],
-  8: [
-    [[0, ', the ', 1, ' of ', 2, ' it is.'], [3, ' leads to ', 4, '.'], ['But ', 5, ' without ', 6, '... ', 7, ', hmm.']],
-    [['Much ', 0, ' in ', 1, ' I sense.'], [2, ' and ', 3, ' — confused, they are.'], [4, ' leads to ', 5, '. ', 6, ' clouds ', 7, '.']],
-  ],
-};
+const YODA_TEMPLATES = [
+  // ── 2 words ───────────────────────────────────────────────
+  { slots: 2, lines: [
+    ['n', ', the shadow of ', '*', ' — this is. Hmm.'],
+  ]},
+  { slots: 2, lines: [
+    ['Strong in ', 'n', ' you are. ', '*', '... clouds the path, it does.'],
+  ]},
+  // ── 3 words ───────────────────────────────────────────────
+  { slots: 3, lines: [
+    ['n', ', the ', 'n', ' — this is.'],
+    ['But ', 'v', '... hmm.'],
+  ]},
+  { slots: 3, lines: [
+    ['Much ', 'n', ' there is.'],
+    ['v', ' leads to ', 'n', '.'],
+  ]},
+  // ── 4 words ───────────────────────────────────────────────
+  { slots: 4, lines: [
+    ['n', ', the ', 'n', ' — this is.'],
+    ['v', ' leads to ', 'n', '. Hmm.'],
+  ]},
+  { slots: 4, lines: [
+    ['Much ', 'n', ' there is.'],
+    ['v', ' leads to ', 'n', '.'],
+    ['Without ', 'a', ', lost you are.'],
+  ]},
+  // ── 5 words ───────────────────────────────────────────────
+  { slots: 5, lines: [
+    ['n', ', the ', 'n', ' — this is.'],
+    ['v', ' leads to ', 'n', '.'],
+    ['Without ', 'a', ', lost you are.'],
+  ]},
+  { slots: 5, lines: [
+    ['Much ', 'n', ' there is.'],
+    ['n', ' without ', 'v', '...'],
+    ['Strong in ', 'a', ', you are. Hmm.'],
+  ]},
+  // ── 6 words ───────────────────────────────────────────────
+  { slots: 6, lines: [
+    ['n', ' and ', 'n', ' — the same, they are.'],
+    ['a', ' of ', 'n', ' I speak.'],
+    ['Yet ', 'v', '... ', 'n', ', hmm.'],
+  ]},
+  { slots: 6, lines: [
+    ['Much ', 'n', ' there is.'],
+    ['v', ' leads to ', 'n', '.'],
+    ['a', '... ', 'n', ' clouds ', 'n', '. Beware.'],
+  ]},
+  // ── 7 words ───────────────────────────────────────────────
+  { slots: 7, lines: [
+    ['n', ' and ', 'n', ' — the same, they are.'],
+    ['a', ' of ', 'n', ' I speak.'],
+    ['v', ' without ', 'n', '... ', 'a', ', hmm.'],
+  ]},
+  { slots: 7, lines: [
+    ['n', ', the ', 'n', ' of ', 'n', ' — this is.'],
+    ['v', ' leads to ', 'a', '.'],
+    ['But ', 'n', ' without ', 'v', '... hmm.'],
+  ]},
+  // ── 8 words ───────────────────────────────────────────────
+  { slots: 8, lines: [
+    ['n', ', the ', 'n', ' of ', 'n', ' — this is.'],
+    ['v', ' leads to ', 'n', '.'],
+    ['But ', 'a', ' without ', 'v', '... ', 'n', ', hmm.'],
+  ]},
+  { slots: 8, lines: [
+    ['Much ', 'n', ' in ', 'n', ' I sense.'],
+    ['v', ' and ', 'n', ' — confused, they are.'],
+    ['n', ' leads to ', 'a', '. ', 'v', '... ', 'n', ', hmm.'],
+  ]},
+];
 // ================================================================
 
 const canvas = document.getElementById('c');
@@ -437,8 +479,8 @@ class Word {
 
     this.ageFactor = Math.min(1, this.ageFactor + dt * 0.000025);
 
-    // Compound auto-fade
-    if (this.isCompound && this.state !== 'fading' && this.state !== 'dead') {
+    // Compound auto-fade — paused while in yoda mode
+    if (this.isCompound && !yodaMode && this.state !== 'fading' && this.state !== 'dead') {
       this.lifeTimer -= dt;
       if (this.lifeTimer <= 0) this.startFading();
     }
@@ -898,57 +940,107 @@ function draw() {
 // === YODA MODE ===
 // ================================================================
 
+const CONNECT_FONT  = 'italic 13px Georgia, "Times New Roman", serif';
+const KOAN_MAX_FONT = 17; // cap word font size in koan for layout predictability
+
+function buildTypeBuckets(words) {
+  const b = { n: [], v: [], a: [], p: [] };
+  for (const w of words) {
+    const k = w.isCompound ? 'n'
+            : w.type === 'noun'      ? 'n'
+            : w.type === 'verb'      ? 'v'
+            : w.type === 'adjective' ? 'a'
+            : 'p';
+    b[k].push(w);
+  }
+  for (const k of Object.keys(b)) {
+    for (let i = b[k].length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [b[k][i], b[k][j]] = [b[k][j], b[k][i]];
+    }
+  }
+  return b;
+}
+
+function pickFromBucket(b, type) {
+  if (b[type] && b[type].length > 0) return b[type].pop();
+  for (const k of ['n', 'v', 'a', 'p']) {
+    if (b[k] && b[k].length > 0) return b[k].pop();
+  }
+  return null;
+}
+
+function measureKoanTok(tok) {
+  if (typeof tok === 'string') {
+    ctx.font = CONNECT_FONT;
+    return ctx.measureText(tok).width;
+  }
+  ctx.font = wordFont(Math.min(tok.fontSize, KOAN_MAX_FONT), tok.isCompound);
+  return ctx.measureText(tok.word).width;
+}
+
+function reflowLines(semanticLines, maxW) {
+  // Break semantic lines at Word boundaries if they exceed maxW
+  const visual = [];
+  for (const semLine of semanticLines) {
+    let cur = [], curW = 0;
+    for (const tok of semLine) {
+      const w = measureKoanTok(tok);
+      if (typeof tok !== 'string' && curW > 0 && curW + w > maxW) {
+        visual.push(cur);
+        cur = [tok]; curW = w;
+      } else {
+        cur.push(tok); curW += w;
+      }
+    }
+    if (cur.length > 0) visual.push(cur);
+  }
+  return visual;
+}
+
 function buildKoanLayout(words) {
   const n = Math.max(2, Math.min(words.length, 8));
-  const tmplSet = YODA_TEMPLATES[n];
-  if (!tmplSet) return null;
-  const templateLines = tmplSet[Math.floor(Math.random() * tmplSet.length)];
+  const candidates = YODA_TEMPLATES.filter(t => t.slots === n);
+  if (candidates.length === 0) return null;
+  const tmpl = candidates[Math.floor(Math.random() * candidates.length)];
 
-  // Replace number tokens with word objects
-  const lines = templateLines.map(line =>
-    line.map(tok => typeof tok === 'number' ? words[tok] : tok)
+  const buckets = buildTypeBuckets(words.slice(0, n));
+  const filledLines = tmpl.lines.map(line =>
+    line.map(tok => {
+      if (tok === 'n' || tok === 'v' || tok === 'a' || tok === 'p' || tok === '*')
+        return pickFromBucket(buckets, tok);
+      return tok;
+    }).filter(tok => tok !== null)
   );
 
-  const connectFont = 'italic 15px Georgia, "Times New Roman", serif';
-  const lineHeight  = 56;
-  const numLines    = lines.length;
-  const startY      = H / 2 - ((numLines - 1) / 2) * lineHeight;
+  const maxLineW    = W - 56;
+  const visualLines = reflowLines(filledLines, maxLineW);
+  const lineHeight  = 58;
+  const startY      = H / 2 - ((visualLines.length - 1) / 2) * lineHeight;
 
   const layout = [];
   ctx.save();
-  for (let li = 0; li < lines.length; li++) {
+  for (let li = 0; li < visualLines.length; li++) {
     const y    = startY + li * lineHeight;
-    const line = lines[li];
+    const line = visualLines[li];
 
-    // Measure total line width for centering
     let totalW = 0;
-    for (const tok of line) {
-      if (typeof tok === 'string') {
-        ctx.font = connectFont;
-        totalW += ctx.measureText(tok).width;
-      } else {
-        ctx.font = wordFont(tok.fontSize, tok.isCompound);
-        totalW += ctx.measureText(tok.word).width;
-      }
-    }
+    for (const tok of line) totalW += measureKoanTok(tok);
 
-    let x = Math.max(16, W / 2 - totalW / 2);
     const tokens = [];
+    let x = Math.max(28, W / 2 - totalW / 2);
+
     for (const tok of line) {
+      const w = measureKoanTok(tok);
       if (typeof tok === 'string') {
-        ctx.font = connectFont;
-        const w = ctx.measureText(tok).width;
         tokens.push({ type: 'text', content: tok, x, y });
-        x += w;
       } else {
-        ctx.font = wordFont(tok.fontSize, tok.isCompound);
-        const w = ctx.measureText(tok.word).width;
         tok.targetX    = x;
         tok.targetY    = y;
         tok.yodaPinned = false;
         tokens.push({ type: 'word', word: tok });
-        x += w;
       }
+      x += w;
     }
     layout.push({ y, tokens });
   }
@@ -960,7 +1052,6 @@ function enterYodaMode() {
   const ws = activeWords.filter(w => w.state !== 'dead' && w.state !== 'fading');
   if (ws.length < 2) return;
 
-  // Shuffle
   const shuffled = [...ws];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -968,14 +1059,14 @@ function enterYodaMode() {
   }
   const words = shuffled.slice(0, 8);
 
-  // Calm all words before arranging
   for (const w of words) {
     w.vx = 0; w.vy = 0;
     if (w.state === 'flying') w.state = 'floating';
   }
-
-  // Dismiss any open definition
   for (const w of activeWords) w.transTimer = 0;
+
+  // Clear in-flight confessions — they're noise during the koan
+  ejections = [];
 
   yodaMode    = true;
   koansLayout = buildKoanLayout(words);
@@ -994,8 +1085,7 @@ function exitYodaMode() {
       const a = Math.random() * Math.PI * 2;
       w.vx = Math.cos(a) * (2 + Math.random() * 4);
       w.vy = Math.sin(a) * (2 + Math.random() * 4);
-      w.state     = 'flying';
-      w.agitation = 0.5;
+      w.state = 'flying'; w.agitation = 0.5;
     }
   }
   const btn = document.getElementById('yodaBtn');
@@ -1007,17 +1097,15 @@ function exitYodaMode() {
 function drawKoan() {
   if (!yodaMode || !koansLayout) return;
   ctx.save();
-  ctx.font      = 'italic 15px Georgia, "Times New Roman", serif';
+  ctx.font      = CONNECT_FONT;
   ctx.fillStyle = 'rgba(70, 70, 70, 0.82)';
   for (const line of koansLayout) {
     for (const tok of line.tokens) {
       if (tok.type === 'text') ctx.fillText(tok.content, tok.x, tok.y);
-      // word tokens draw themselves via the w.draw() loop
     }
   }
   ctx.restore();
 }
-// ================================================================
 
 let draggedWord = null, ptrStartX = 0, ptrStartY = 0;
 
