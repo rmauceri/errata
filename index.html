@@ -1070,13 +1070,13 @@ function measureKoanTok(tok) {
 }
 
 function reflowLines(semanticLines, maxW) {
-  // Break semantic lines at Word boundaries if they exceed maxW
+  // Break before any token (word or string) that would push the line past maxW
   const visual = [];
   for (const semLine of semanticLines) {
     let cur = [], curW = 0;
     for (const tok of semLine) {
       const w = measureKoanTok(tok);
-      if (typeof tok !== 'string' && curW > 0 && curW + w > maxW) {
+      if (curW > 0 && curW + w > maxW) {
         visual.push(cur);
         cur = [tok]; curW = w;
       } else {
@@ -1148,6 +1148,7 @@ function enterYodaMode() {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   const words = shuffled.slice(0, 8);
+  const konaSet = new Set(words);
 
   for (const w of words) {
     w.vx = 0; w.vy = 0;
@@ -1156,6 +1157,10 @@ function enterYodaMode() {
     w._konaOrigFontSize = w.fontSize;
     w.fontSize = effectiveKoanFontSize(w);
     w.textWidth = 0;
+  }
+  // Fade out any extra active words not in the koan
+  for (const w of ws) {
+    if (!konaSet.has(w)) w.startFading();
   }
   for (const w of activeWords) w.transTimer = 0;
 
